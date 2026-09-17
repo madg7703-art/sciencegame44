@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blink to Sort - WebAR Science Learning Game</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Sarabun & Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- MediaPipe Face Mesh Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: 'Sarabun', 'Inter', sans-serif;
+            background: radial-gradient(circle at center, #1e1b4b 0%, #0f172a 100%);
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.82);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+        }
+        .camera-feed {
+            transform: scaleX(-1);
+        }
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 25px rgba(56, 189, 248, 0.6); }
+            50% { transform: scale(1.03); box-shadow: 0 0 40px rgba(56, 189, 248, 0.95); }
+        }
+        .pulse-active {
+            animation: pulseGlow 0.5s infinite ease-in-out;
+        }
+        @keyframes floatAnim {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+        .animate-float {
+            animation: floatAnim 3s infinite ease-in-out;
+        }
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop {
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes dynamicGlow1 {
+            0%, 100% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.7), inset 0 0 10px rgba(56, 189, 248, 0.4); border-color: rgba(56, 189, 248, 0.9); }
+            50% { box-shadow: 0 0 35px rgba(168, 85, 247, 0.9), inset 0 0 15px rgba(168, 85, 247, 0.6); border-color: rgba(168, 85, 247, 1); }
+        }
+        @keyframes dynamicGlow2 {
+            0%, 100% { box-shadow: 0 0 20px rgba(234, 179, 8, 0.7), inset 0 0 10px rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 0.9); }
+            50% { box-shadow: 0 0 35px rgba(244, 63, 94, 0.9), inset 0 0 15px rgba(244, 63, 94, 0.6); border-color: rgba(244, 63, 94, 1); }
+        }
+        @keyframes dynamicGlow3 {
+            0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.7), inset 0 0 10px rgba(16, 185, 129, 0.4); border-color: rgba(16, 185, 129, 0.9); }
+            50% { box-shadow: 0 0 35px rgba(59, 130, 246, 0.9), inset 0 0 15px rgba(59, 130, 246, 0.6); border-color: rgba(59, 130, 246, 1); }
+        }
+        .glow-variant-0 { animation: dynamicGlow1 3s infinite ease-in-out; }
+        .glow-variant-1 { animation: dynamicGlow2 3s infinite ease-in-out; }
+        .glow-variant-2 { animation: dynamicGlow3 3s infinite ease-in-out; }
+
+        @keyframes cardGlowPulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(56, 189, 248, 0.4), 0 0 40px rgba(147, 51, 234, 0.2); }
+            50% { box-shadow: 0 0 35px rgba(56, 189, 248, 0.7), 0 0 60px rgba(147, 51, 234, 0.4); }
+        }
+        .card-glow-pulse {
+            animation: cardGlowPulse 4s infinite ease-in-out;
+        }
+
+        @keyframes optionGlowLeft {
+            0%, 100% { box-shadow: 0 0 15px rgba(6, 182, 212, 0.5); border-color: rgba(6, 182, 212, 0.6); }
+            50% { box-shadow: 0 0 28px rgba(6, 182, 212, 0.9); border-color: rgba(6, 182, 212, 1); }
+        }
+        @keyframes optionGlowRight {
+            0%, 100% { box-shadow: 0 0 15px rgba(99, 102, 241, 0.5); border-color: rgba(99, 102, 241, 0.6); }
+            50% { box-shadow: 0 0 28px rgba(99, 102, 241, 0.9); border-color: rgba(99, 102, 241, 1); }
+        }
+        .option-glow-left { animation: optionGlowLeft 3s infinite ease-in-out; }
+        .option-glow-right { animation: optionGlowRight 3s infinite ease-in-out; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-2 sm:p-4 select-none">
+
+    <header class="w-full max-w-5xl flex items-center justify-between px-4 py-3 glass-panel rounded-2xl shadow-xl mb-3 z-20">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 animate-float">
+                <i class="fa-solid fa-flask-vial text-white text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-extrabold text-base sm:text-lg bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">Blink to Sort</h1>
+                <p class="text-xs text-slate-400">WebAR Science Game (แยกสารผสม)</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 sm:space-x-3">
+            <!-- FPS Counter -->
+            <div id="fps-counter" class="text-xs px-2.5 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-cyan-400 font-mono hidden sm:block">
+                FPS: --
+            </div>
+            <!-- Sound Toggle Button -->
+            <button id="sound-toggle-btn" onclick="toggleSound()" class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 transition flex items-center gap-1.5 text-slate-200 shadow" title="เปิด/ปิดเสียงเอฟเฟกต์ & เพลง">
+                <i id="sound-icon" class="fa-solid fa-volume-high text-emerald-400"></i> <span class="hidden sm:inline">เสียง</span>
+            </button>
+            <!-- Voice Narration Toggle Button -->
+            <button id="voice-toggle-btn" onclick="toggleVoice()" class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 transition flex items-center gap-1.5 text-slate-200 shadow" title="เปิด/ปิดเสียงอ่านข้อความ">
+                <i id="voice-icon" class="fa-solid fa-microphone text-emerald-400"></i> <span class="hidden sm:inline">เสียงอ่าน</span>
+            </button>
+            <!-- Toggle Camera/Mouse Mode -->
+            <button id="mode-toggle-btn" onclick="toggleControlMode()" class="px-3 py-1.5 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 transition flex items-center gap-1.5 text-slate-200 shadow">
+                <i id="mode-icon" class="fa-solid fa-eye text-cyan-400"></i> <span id="mode-text">โหมด: ตา (AR)</span>
+            </button>
+            <button onclick="toggleHelpModal()" class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-300 transition shadow">
+                <i class="fa-solid fa-question"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="w-full max-w-5xl flex-1 flex flex-col items-center justify-center relative my-auto">
+        
+        <!-- Video & Canvas Container (Enlarged Aspect Ratio & Immersive Scale) -->
+        <div id="game-stage" class="relative w-full aspect-[16/11] sm:aspect-[16/10] max-h-[84vh] rounded-3xl overflow-hidden glass-panel shadow-2xl flex items-center justify-center border border-slate-700/50">
+            <!-- WebCam Video -->
+            <video id="webcam" class="absolute inset-0 w-full h-full object-cover camera-feed opacity-30 pointer-events-none" autoplay playsinline muted></video>
+            
+            <!-- AR Overlay Canvas -->
+            <canvas id="ar-canvas" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></canvas>
+
+            <!-- Background Particle Canvas -->
+            <canvas id="particle-canvas" class="absolute inset-0 w-full h-full z-0 pointer-events-none"></canvas>
+
+            <!-- START SCREEN OVERLAY -->
+            <div id="start-screen" class="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+                <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center mb-4 shadow-2xl shadow-cyan-500/40 animate-bounce">
+                    <i class="fa-solid fa-wand-magic-sparkles text-3xl text-white"></i>
+                </div>
+                <h2 class="text-2xl sm:text-4xl font-extrabold mb-2 text-white">ภารกิจแยกสารผสมวิทยาศาสตร์</h2>
+                <p class="text-sm sm:text-base text-slate-300 max-w-lg mb-6 leading-relaxed">
+                    เลือกวิธีแยกสารผสมที่ถูกต้องโดยการกระพริบตา หรือคลิกเลือกตัวเลือกได้ทันที! <br>
+                    <span class="text-cyan-400 font-semibold">👁️ กระพริบตาขวา = เลือกซ้าย | 👁️ กระพริบตาซ้าย = เลือกขวา (หรือใช้คลิก/แตะ)</span>
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                    <button onclick="startGame()" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/30 transition transform active:scale-95 flex items-center justify-center gap-2 text-base">
+                        <i class="fa-solid fa-play"></i> เริ่มเกมทันที
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mt-4">รองรับทั้งกล้องเว็บแคม (Face Mesh), การคลิกเลือก, และแป้นพิมพ์ A / D</p>
+            </div>
+
+            <div id="gameplay-ui" class="absolute inset-0 z-20 flex flex-col justify-between p-4 sm:p-8 pointer-events-none hidden">
+                
+                <!-- Top Status Bar -->
+                <div class="flex items-center justify-between w-full pointer-events-auto">
+                    <div class="glass-card px-4 py-2 rounded-xl flex items-center gap-2 text-xs sm:text-sm font-bold shadow-lg">
+                        <i class="fa-solid fa-layer-group text-cyan-400"></i>
+                        <span>ข้อที่ <span id="current-q">1</span>/<span id="total-q">6</span></span>
+                    </div>
+                    <!-- Question Timer 40s -->
+                    <div id="q-timer-badge" class="glass-card px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-lg text-cyan-300">
+                        <i class="fa-solid fa-clock"></i>
+                        <span>เวลา: <span id="q-timer-val">40</span>s</span>
+                    </div>
+                    <div class="flex items-center gap-2 sm:gap-3">
+                        <div class="glass-card px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-lg text-amber-400">
+                            <i class="fa-solid fa-fire"></i>
+                            <span>Combo x<span id="combo-count">1</span></span>
+                        </div>
+                        <div class="glass-card px-4 py-2 rounded-xl flex items-center gap-1.5 text-xs sm:text-sm font-bold shadow-lg text-emerald-400">
+                            <i class="fa-solid fa-star"></i>
+                            <span>คะแนน: <span id="score-val">0</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Center Mixture Card with Dynamic Glowing Border and Card Glow Pulse -->
+                <div class="self-center w-full max-w-lg my-auto flex flex-col items-center">
+                    <!-- Hint Button & Tooltip -->
+                    <div class="mb-2 flex items-center gap-2 pointer-events-auto">
+                        <button onclick="showHint()" class="px-3.5 py-1.5 rounded-full bg-amber-500/25 hover:bg-amber-500/35 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-semibold transition flex items-center gap-1.5 shadow-md">
+                            <i class="fa-solid fa-lightbulb"></i> ขอคำใบ้ (-10 คะแนน)
+                        </button>
+                    </div>
+
+                    <div id="mixture-card" class="glass-panel w-full p-5 sm:p-6 rounded-3xl shadow-2xl text-center border border-cyan-500/60 card-glow-pulse transform transition-all duration-300 flex flex-col items-center">
+                        <div id="mixture-img-container" class="w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-3 rounded-2xl overflow-hidden bg-slate-900 border-2 shadow-inner flex items-center justify-center relative glow-variant-0">
+                            <img id="mixture-img" src="" alt="ภาพสารผสม" class="w-full h-full object-cover transform hover:scale-105 transition duration-300" onerror="this.src='https://placehold.co/250x250/0f172a/38bdf8?text=Science'">
+                        </div>
+                        <span class="inline-block px-3.5 py-1 rounded-full bg-cyan-500/10 text-cyan-400 text-xs sm:text-sm font-semibold mb-1">สารผสมตัวอย่าง</span>
+                        <h3 id="mixture-title" class="text-2xl sm:text-3xl font-extrabold text-white mb-1">ข้าวเปลือกปนข้าวสาร</h3>
+                        <p id="hint-text" class="text-xs sm:text-sm text-slate-400 italic min-h-[1.5rem]"></p>
+                    </div>
+                </div>
+
+                <!-- Bottom Option Cards (Left & Right) with Glowing Light Effects -->
+                <div class="grid grid-cols-2 gap-4 sm:gap-8 w-full pointer-events-auto">
+                    <!-- Left Option -->
+                    <div id="option-left-container" onclick="selectAnswer('left')" class="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-800/95 transition-all border border-cyan-500/50 option-glow-left shadow-2xl group relative overflow-hidden">
+                        <div class="absolute top-2.5 left-3 text-[11px] uppercase font-bold tracking-wider text-cyan-300 bg-cyan-950/90 px-2.5 py-1 rounded-lg border border-cyan-700/80 flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-eye text-cyan-400"></i> ตาขวา (เลือกซ้าย) / คลิก / A
+                        </div>
+                        <div class="mt-4 w-11 h-11 rounded-xl bg-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform mb-1 shadow">
+                            <i class="fa-solid fa-arrow-left text-lg"></i>
+                        </div>
+                        <span id="option-left-text" class="font-extrabold text-base sm:text-lg text-slate-100">การร่อน</span>
+                        <span class="mt-1 text-xs text-cyan-300/90 underline font-semibold">คลิกเลือกตัวนี้</span>
+                    </div>
+
+                    <!-- Right Option -->
+                    <div id="option-right-container" onclick="selectAnswer('right')" class="glass-panel p-4 sm:p-5 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-slate-800/95 transition-all border border-indigo-500/50 option-glow-right shadow-2xl group relative overflow-hidden">
+                        <div class="absolute top-2.5 right-3 text-[11px] uppercase font-bold tracking-wider text-indigo-300 bg-indigo-950/90 px-2.5 py-1 rounded-lg border border-indigo-700/80 flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-eye text-indigo-400"></i> ตาซ้าย (เลือกขวา) / คลิก / D
+                        </div>
+                        <div class="mt-4 w-11 h-11 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform mb-1 shadow">
+                            <i class="fa-solid fa-arrow-right text-lg"></i>
+                        </div>
+                        <span id="option-right-text" class="font-extrabold text-base sm:text-lg text-slate-100">การรินออก</span>
+                        <span class="mt-1 text-xs text-indigo-300/90 underline font-semibold">คลิกเลือกตัวนี้</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="explanation-modal" class="absolute inset-0 z-40 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center hidden">
+                <div class="glass-panel w-full max-w-lg p-5 sm:p-7 rounded-3xl border border-cyan-500/50 shadow-2xl animate-pop flex flex-col items-center max-h-[90vh] overflow-y-auto">
+                    
+                    <div class="flex items-center gap-3 mb-2">
+                        <div id="exp-status-icon" class="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl shadow-lg shadow-emerald-500/20">
+                            <i class="fa-solid fa-check"></i>
+                        </div>
+                        <div class="text-left">
+                            <h3 id="exp-title" class="text-xl sm:text-2xl font-extrabold text-white">ถูกต้องนะคร้าบ! 🎉</h3>
+                            <p id="exp-subtitle" class="text-xs sm:text-sm text-cyan-400 font-semibold">หลักการแยกสารผสมวิทยาศาสตร์</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Educational Content Card with Specific Question Image -->
+                    <div class="w-full bg-slate-900/85 rounded-2xl p-4 border border-slate-700/80 flex flex-col sm:flex-row items-center gap-4 mb-4">
+                        <div id="exp-img-container" class="w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-slate-950 border-2 flex-shrink-0 flex items-center justify-center shadow glow-variant-0">
+                            <img id="exp-modal-img" src="" alt="ภาพสารผสม" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/200x200/0f172a/38bdf8?text=Science'">
+                        </div>
+                        <div class="text-left space-y-1.5 flex-1">
+                            <div class="flex items-center gap-2 text-sm sm:text-base text-cyan-300 font-bold">
+                                <i class="fa-solid fa-book-open text-cyan-400"></i>
+                                <span id="exp-method-name">การร่อน (Sieving)</span>
+                            </div>
+                            <p id="exp-description" class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+                                ใช้สำหรับแยกของแข็งที่มีขนาดแตกต่างกันให้ออกจากกัน โดยผ่านตะแกรงหรือรูพรุนที่มีขนาดเหมาะสม
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 5-Second Eye Rest Break Timer Bar -->
+                    <div class="w-full bg-slate-900/90 rounded-2xl p-3 border border-indigo-500/30 mb-4 text-center flex flex-col items-center">
+                        <div class="flex items-center gap-2 text-xs sm:text-sm text-indigo-300 font-bold mb-1.5">
+                            <i class="fa-solid fa-eye text-cyan-400 animate-pulse"></i>
+                            <span>พักสายตาผ่อนคลายกล้ามเนื้อตา (Eye Rest)</span>
+                            <span id="rest-timer-val" class="font-mono text-cyan-400 text-base">5</span> วินาที
+                        </div>
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div id="rest-progress-bar" class="bg-gradient-to-r from-cyan-500 to-indigo-500 h-full w-full transition-all duration-1000"></div>
+                        </div>
+                    </div>
+
+                    <button id="next-q-btn" onclick="nextQuestionAfterModal()" class="w-full py-3 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/30 transition transform active:scale-95 flex items-center justify-center gap-2 opacity-50 cursor-not-allowed text-sm sm:text-base" disabled>
+                        <i class="fa-solid fa-arrow-right"></i> ข้อถัดไป (<span id="btn-countdown">5</span>s)
+                    </button>
+                </div>
+            </div>
+
+            <div id="game-over-screen" class="absolute inset-0 z-40 bg-slate-950/92 backdrop-blur-lg flex flex-col items-center justify-center p-6 text-center hidden">
+                <div class="w-20 h-20 rounded-3xl bg-gradient-to-tr from-amber-400 to-orange-500 flex items-center justify-center mb-4 shadow-2xl shadow-amber-500/40 animate-bounce">
+                    <i class="fa-solid fa-trophy text-3xl text-white"></i>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-extrabold mb-1 text-white">ยอดเยี่ยมมาก! ภารกิจสำเร็จ</h2>
+                <p class="text-sm text-slate-400 mb-6">คุณเข้าใจหลักการแยกสารผสมวิทยาศาสตร์ได้อย่างยอดเยี่ยม</p>
+                
+                <div class="glass-card w-full max-w-sm p-5 rounded-2xl mb-6 space-y-3 text-left border border-slate-700">
+                    <div class="flex justify-between text-sm sm:text-base">
+                        <span class="text-slate-400">คะแนนรวมทั้งหมด:</span>
+                        <span id="final-score" class="font-bold text-emerald-400 text-lg">0</span>
+                    </div>
+                    <div class="flex justify-between text-sm sm:text-base">
+                        <span class="text-slate-400">เวลาที่ใช้:</span>
+                        <span id="final-time" class="font-bold text-cyan-400">0 วินาที</span>
+                    </div>
+                    <div class="flex justify-between text-sm sm:text-base">
+                        <span class="text-slate-400">ระดับความสำเร็จ:</span>
+                        <span id="final-rank" class="font-bold text-amber-400">ระดับปรมาจารย์ 🏆</span>
+                    </div>
+                </div>
+
+                <button onclick="restartGame()" class="w-full max-w-sm py-3.5 px-6 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold shadow-lg shadow-cyan-500/30 transition transform active:scale-95 flex items-center justify-center gap-2 text-base">
+                    <i class="fa-solid fa-rotate-right"></i> เล่นใหม่อีกครั้ง
+                </button>
+            </div>
+
+        </div>
+
+    </main>
+
+    <footer class="w-full max-w-5xl text-center py-2 text-xs text-slate-400 z-20 flex flex-col sm:flex-row items-center justify-between px-4">
+        <p>💡 <span class="text-slate-300">วิธีเลือกตอบ:</span> ตาขวา = เลือกซ้าย | ตาซ้าย = เลือกขวา (หรือคลิก/แตะเลือกได้ทันที)</p>
+        <p class="mt-1 sm:mt-0 font-mono text-cyan-500">WebAR Science Engine v4.4</p>
+    </footer>
+
+    <!-- HELP MODAL -->
+    <div id="help-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 hidden">
+        <div class="glass-panel w-full max-w-md p-6 sm:p-8 rounded-3xl border border-slate-700 shadow-2xl relative animate-pop">
+            <button onclick="toggleHelpModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-xl font-extrabold mb-3 text-cyan-400 flex items-center gap-2">
+                <i class="fa-solid fa-circle-info"></i> คู่มือการเล่น & วิธีเลือกตอบ
+            </h3>
+            <div class="space-y-3 text-xs sm:text-sm text-slate-300 leading-relaxed text-left">
+                <p><strong>1. การใช้กล้อง WebAR (Face Mesh):</strong> ระบบจะติดตามดวงตาของคุณโดยอัตโนมัติ ให้หันหน้าตรงและให้แสงสว่างพอเหมาะ</p>
+                <p><strong>2. วิธีการเลือกคำตอบ (ทำได้ 3 วิธี):</strong></p>
+                <ul class="list-disc list-inside pl-2 space-y-1.5 text-slate-400">
+                    <li><span class="text-cyan-400 font-semibold">วิธีที่ 1 (AR Eye Tracking):</span> กระพริบตาขวา (เลือกซ้าย) / กระพริบตาซ้าย (เลือกขวา)</li>
+                    <li><span class="text-indigo-400 font-semibold">วิธีที่ 2 (คลิก/แตะ):</span> ใช้เมาส์คลิกหรือนิ้วแตะที่การ์ดตัวเลือกซ้ายหรือขวาได้ทันที</li>
+                    <li><span class="text-emerald-400 font-semibold">วิธีที่ 3 (แป้นพิมพ์):</span> กดปุ่ม <code class="bg-slate-800 px-1.5 py-0.5 rounded text-cyan-300">A</code> (ซ้าย) และ <code class="bg-slate-800 px-1.5 py-0.5 rounded text-indigo-300">D</code> (ขวา)</li>
+                </ul>
+                <p><strong>3. ระบบเสียงอ่าน & เสียงประกอบ:</strong> สามารถเปิด-ปิดเสียงบรรยายและเสียงดนตรีประกอบได้ตลอดเวลาจากเมนูด้านบน</p>
+            </div>
+            <button onclick="toggleHelpModal()" class="w-full mt-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold transition border border-slate-600">
+                เข้าใจแล้ว
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let soundEnabled = true;
+        let voiceEnabled = true;
+        let audioCtx = null;
+        let bgmInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function speakText(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            try {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'th-TH';
+                utterance.rate = 1.0;
+                utterance.pitch = 1.1;
+                window.speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.warn("Speech synthesis error:", e);
+            }
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            const icon = document.getElementById('voice-icon');
+            if (voiceEnabled) {
+                icon.className = "fa-solid fa-microphone text-emerald-400";
+                playSound('click');
+                speakText("เปิดเสียงอ่านแล้วครับ");
+            } else {
+                icon.className = "fa-solid fa-microphone-slash text-rose-400";
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            }
+        }
+
+        function startBGM() {
+            if (bgmInterval || !soundEnabled) return;
+            initAudio();
+            
+            const melodyNotes = [
+                523.25, 659.25, 783.99, 1046.50,
+                587.33, 739.99, 880.00, 1174.66,
+                440.00, 554.37, 659.25, 880.00,
+                392.00, 493.88, 587.33, 783.99
+            ];
+            
+            let noteIdx = 0;
+
+            bgmInterval = setInterval(() => {
+                if (!soundEnabled || !audioCtx) return;
+                try {
+                    const now = audioCtx.currentTime;
+                    const freq = melodyNotes[noteIdx];
+                    noteIdx = (noteIdx + 1) % melodyNotes.length;
+
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.001, now);
+                    gain.gain.linearRampToValueAtTime(0.025, now + 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.75);
+                } catch (e) {
+                    console.warn("BGM tick error:", e);
+                }
+            }, 350);
+        }
+
+        function stopBGM() {
+            if (bgmInterval) {
+                clearInterval(bgmInterval);
+                bgmInterval = null;
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                const now = audioCtx.currentTime;
+
+                if (type === 'correct') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.08);
+                    osc.frequency.setValueAtTime(783.99, now + 0.16);
+                    osc.frequency.setValueAtTime(1046.50, now + 0.24);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'wrong') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(250, now);
+                    osc.frequency.linearRampToValueAtTime(160, now + 0.2);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, now);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+                    osc.start(now);
+                    osc.stop(now + 0.08);
+                }
+            } catch (e) {
+                console.warn("Audio playback error:", e);
+            }
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                icon.className = "fa-solid fa-volume-high text-emerald-400";
+                playSound('click');
+                if (gameActive) startBGM();
+            } else {
+                icon.className = "fa-solid fa-volume-xmark text-rose-400";
+                stopBGM();
+            }
+        }
+
+        // --- STREAMING_CHUNK:Defining questions data with exact Google Drive image URLs... ---
+        let questionsData = [
+            { 
+                mixture: "ข้าวเปลือกปนข้าวสาร", 
+                img: "https://lh3.googleusercontent.com/d/1qeV5JrzFCKlJYHFgrI1AfLvhJIjia8Wu", 
+                optionLeft: "การร่อน", 
+                optionRight: "การรินออก", 
+                correct: "left", 
+                hint: "ของแข็งที่มีขนาดต่างกันเล็กน้อย ใช้ตะแกรงร่อนออก",
+                scienceInfo: "การร่อน (Sieving) ใช้แยกของแข็งที่มีขนาดแตกต่างกันให้ออกจากกัน โดยผ่านตะแกรงหรือวัสดุที่มีรูพรุน เช่น การร่อนข้าวเปลือกออกจากข้าวสาร หรือการร่อนแป้ง" 
+            },
+            { 
+                mixture: "ผงเหล็กปนในทราย", 
+                img: "https://lh3.googleusercontent.com/d/1pXs9v0_XnDpe-CAvs86B-5V2_aaxPnBz", 
+                optionLeft: "การกรอง", 
+                optionRight: "การใช้แม่เหล็กดึงดูด", 
+                correct: "right", 
+                hint: "สารหนึ่งมีสมบัติความเป็นแม่เหล็ก ดึงดูดออกได้",
+                scienceInfo: "การใช้แม่เหล็กดึงดูด (Magnetic Attraction) ใช้สำหรับแยกสารที่มีสารแม่เหล็กผสมอยู่ด้วย เช่น ผงเหล็ก ผสมกับทราย โดยสารแม่เหล็กจะถูกดูดติดกับแม่เหล็ก" 
+            },
+            { 
+                mixture: "น้ำโคลนทิ้งไว้ค้างคืน", 
+                img: "https://lh3.googleusercontent.com/d/1LbewzK4ebcLHgCGyDJek5G3ZI9fnhMbZ", 
+                optionLeft: "การตกตะกอน", 
+                optionRight: "การหยิบออก", 
+                correct: "left", 
+                hint: "ของแข็งแขวนลอยในของเหลว ปล่อยให้ตกลงสู่ก้นภาชนะ",
+                scienceInfo: "การตกตะกอน (Sedimentation) ใช้แยกของแข็งที่แขวนลอยอยู่ในของเหลว โดยปล่อยให้ภาชนะตั้งทิ้งไว้ เพื่อให้ของแข็งที่มีน้ำหนักตกลงสู่ก้นภาชนะ" 
+            },
+            { 
+                mixture: "กากมะพร้าวในน้ำกะทิ", 
+                img: "https://lh3.googleusercontent.com/d/1c1RX9JL6g1YdVqH2vmyDjZtSDu4rtiG9", 
+                optionLeft: "การร่อน", 
+                optionRight: "การกรอง", 
+                correct: "right", 
+                hint: "แยกของแข็งที่ไม่ละลายน้ำออกจากของเหลวด้วยผ้าขาวบางหรือกระดาษกรอง",
+                scienceInfo: "การกรอง (Filtration) ใช้แยกสารผสมที่เป็นของแข็งที่ไม่ละลายในของเหลว โดยให้ของเหลวผ่านวัสดุกรอง เช่น ผ้าขาวบาง หรือกระดาษกรอง" 
+            },
+            { 
+                mixture: "น้ำซาวข้าว", 
+                img: "https://lh3.googleusercontent.com/d/1ziKeAkMuwxLdUDt2pKD2MCdO8ys5b5H6", 
+                optionLeft: "การรินออก", 
+                optionRight: "การใช้แม่เหล็ก", 
+                correct: "left", 
+                hint: "ของแข็งจมอยู่ก้นภาชนะ ค่อยๆ เทของเหลวด้านบนออก",
+                scienceInfo: "การรินออก (Decantation) ใช้แยกของแข็งที่นอนก้นอยู่ในของเหลว โดยค่อยๆ เอียงภาชนะรินของเหลวด้านบนออกโดยไม่ให้ตะกอนหลุดร่วงตามมา" 
+            },
+            { 
+                mixture: "ก้อนกรวดปนในเมล็ดถั่วเขียว", 
+                img: "https://lh3.googleusercontent.com/d/1g14N-RF-_TQ6Wa9ShCRG6gNfpqzaC0pf", 
+                optionLeft: "การหยิบออก", 
+                optionRight: "การตกตะกอน", 
+                correct: "left", 
+                hint: "ของแข็งขนาดใหญ่พอสมควร สีและลักษณะต่างกันชัดเจนใช้มือหยิบ",
+                scienceInfo: "การหยิบออก (Hand Picking) ใช้แยกของแข็งที่มีขนาดใหญ่พอมองเห็นได้ด้วยตาเปล่า และมีลักษณะแตกต่างกันอย่างชัดเจน เช่น การหยีกก้อนกรวดออกจากถั่วเขียว" 
+            }
+        ];
+
+        let activeQuestions = [];
+        let currentIndex = 0;
+        let score = 0;
+        let combo = 1;
+        let startTime = 0;
+        let timerInterval = null;
+        let qTimerInterval = null;
+        let qTimeRemaining = 40;
+        let restInterval = null;
+        let gameActive = false;
+        let controlMode = 'ar';
+        let waitingForNext = false;
+
+        let leftBlinkFrames = 0;
+        let rightBlinkFrames = 0;
+        const blinkThreshold = 0.22;
+        const blinkFrameRequired = 2;
+        let lastBlinkTime = 0;
+        const blinkCooldown = 1200;
+
+        let lastTime = performance.now();
+        let frameCount = 0;
+        let fps = 0;
+
+        let particles = [];
+        const particleCanvas = document.getElementById('particle-canvas');
+        const particleCtx = particleCanvas.getContext('2d');
+
+        const videoElement = document.getElementById('webcam');
+        const arCanvas = document.getElementById('ar-canvas');
+        const arCtx = arCanvas.getContext('2d');
+        let faceMesh = null;
+        let camera = null;
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < 45; i++) {
+                particles.push({
+                    x: Math.random() * particleCanvas.width,
+                    y: Math.random() * particleCanvas.height,
+                    radius: Math.random() * 2.5 + 1,
+                    color: Math.random() > 0.5 ? 'rgba(56, 189, 248, 0.5)' : 'rgba(129, 140, 248, 0.5)',
+                    vx: (Math.random() - 0.5) * 0.6,
+                    vy: (Math.random() - 0.5) * 0.6
+                });
+            }
+        }
+
+        function updateAndDrawParticles() {
+            particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0) p.x = particleCanvas.width;
+                if (p.x > particleCanvas.width) p.x = 0;
+                if (p.y < 0) p.y = particleCanvas.height;
+                if (p.y > particleCanvas.height) p.y = 0;
+
+                particleCtx.beginPath();
+                particleCtx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                particleCtx.fillStyle = p.color;
+                particleCtx.fill();
+            });
+        }
+
+        function setupMediaPipe() {
+            faceMesh = new FaceMesh({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+            });
+
+            faceMesh.setOptions({
+                maxNumFaces: 1,
+                refineLandmarks: true,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            faceMesh.onResults(onResults);
+
+            camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    if (gameActive && controlMode === 'ar' && !waitingForNext) {
+                        await faceMesh.send({ image: videoElement });
+                    }
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start().catch(err => {
+                console.warn("WebCam access error or denied, switching to manual mode.", err);
+                toggleControlMode();
+            });
+        }
+
+        function onResults(results) {
+            if (arCanvas.width !== arCanvas.clientWidth || arCanvas.height !== arCanvas.clientHeight) {
+                arCanvas.width = arCanvas.clientWidth;
+                arCanvas.height = arCanvas.clientHeight;
+                particleCanvas.width = particleCanvas.clientWidth;
+                particleCanvas.height = particleCanvas.clientHeight;
+                if (particles.length === 0) initParticles();
+            }
+
+            arCtx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+
+            if (waitingForNext) return;
+
+            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+                drawFeedbackText("ไม่พบใบหน้า กรุณาอยู่หน้ากล้อง", "rgba(239, 68, 68, 0.75)");
+                return;
+            }
+
+            const landmarks = results.multiFaceLandmarks[0];
+            drawEyeLandmarks(landmarks);
+
+            const leftEAR = calculateEAR(landmarks, 159, 145, 33, 133);
+            const rightEAR = calculateEAR(landmarks, 386, 374, 362, 263);
+
+            const now = Date.now();
+            if (now - lastBlinkTime > blinkCooldown) {
+                // Blink right eye -> selects left option
+                if (rightEAR < blinkThreshold) {
+                    rightBlinkFrames++;
+                    if (rightBlinkFrames >= blinkFrameRequired) {
+                        lastBlinkTime = now;
+                        rightBlinkFrames = 0;
+                        triggerBlinkFeedback('left');
+                        selectAnswer('left');
+                    }
+                } else {
+                    rightBlinkFrames = Math.max(0, rightBlinkFrames - 1);
+                }
+
+                // Blink left eye -> selects right option
+                if (leftEAR < blinkThreshold) {
+                    leftBlinkFrames++;
+                    if (leftBlinkFrames >= blinkFrameRequired) {
+                        lastBlinkTime = now;
+                        leftBlinkFrames = 0;
+                        triggerBlinkFeedback('right');
+                        selectAnswer('right');
+                    }
+                } else {
+                    leftBlinkFrames = Math.max(0, leftBlinkFrames - 1);
+                }
+            }
+        }
+
+        function calculateEAR(landmarks, topIdx, bottomIdx, p1Idx, p2Idx) {
+            const top = landmarks[topIdx];
+            const bottom = landmarks[bottomIdx];
+            const p1 = landmarks[p1Idx];
+            const p2 = landmarks[p2Idx];
+
+            const dx_vert = top.x - bottom.x;
+            const dy_vert = top.y - bottom.y;
+            const verticalDist = Math.sqrt(dx_vert * dx_vert + dy_vert * dy_vert);
+
+            const dx_horiz = p1.x - p2.x;
+            const dy_horiz = p1.y - p2.y;
+            const horizontalDist = Math.sqrt(dx_horiz * dx_horiz + dy_horiz * dy_horiz);
+
+            return verticalDist / (horizontalDist + 1e-6);
+        }
+
+        function drawEyeLandmarks(landmarks) {
+            const leftEyeIndices = [33, 160, 158, 133, 153, 144, 159, 145];
+            const rightEyeIndices = [363, 385, 387, 263, 373, 380, 386, 374];
+
+            arCtx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+            arCtx.lineWidth = 2.5;
+
+            [leftEyeIndices, rightEyeIndices].forEach(eyeIndices => {
+                arCtx.beginPath();
+                eyeIndices.forEach((idx, i) => {
+                    const x = landmarks[idx].x * arCanvas.width;
+                    const y = landmarks[idx].y * arCanvas.height;
+                    if (i === 0) arCtx.moveTo(x, y);
+                    else arCtx.lineTo(x, y);
+                });
+                arCtx.closePath();
+                arCtx.stroke();
+            });
+        }
+
+        function drawFeedbackText(text, color) {
+            arCtx.fillStyle = color;
+            arCtx.font = 'bold 16px Sarabun, sans-serif';
+            arCtx.textAlign = 'center';
+            arCtx.fillText(text, arCanvas.width / 2, 40);
+        }
+
+        function triggerBlinkFeedback(side) {
+            const el = document.getElementById(side === 'left' ? 'option-left-container' : 'option-right-container');
+            if (el) {
+                el.classList.add('pulse-active', 'border-cyan-400');
+                setTimeout(() => el.classList.remove('pulse-active', 'border-cyan-400'), 500);
+            }
+        }
+
+        function startGame() {
+            playSound('click');
+            activeQuestions = JSON.parse(JSON.stringify(questionsData))
+                .sort(() => Math.random() - 0.5)
+                .slice(0, 6);
+            
+            currentIndex = 0;
+            score = 0;
+            combo = 1;
+            gameActive = true;
+            waitingForNext = false;
+            startTime = Date.now();
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('explanation-modal').classList.add('hidden');
+            document.getElementById('gameplay-ui').classList.remove('hidden');
+
+            document.getElementById('total-q').innerText = activeQuestions.length;
+            loadQuestion();
+
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+
+            startBGM();
+        }
+
+        function loadQuestion() {
+            if (currentIndex >= activeQuestions.length) {
+                endGame();
+                return;
+            }
+
+            const q = activeQuestions[currentIndex];
+            document.getElementById('current-q').innerText = currentIndex + 1;
+            document.getElementById('mixture-title').innerText = q.mixture;
+            document.getElementById('mixture-img').src = q.img;
+            document.getElementById('hint-text').innerText = "";
+            document.getElementById('score-val').innerText = score;
+            document.getElementById('combo-count').innerText = combo;
+
+            document.getElementById('option-left-text').innerText = q.optionLeft;
+            document.getElementById('option-right-text').innerText = q.optionRight;
+
+            const glowClass = `glow-variant-${currentIndex % 3}`;
+            const imgContainer = document.getElementById('mixture-img-container');
+            imgContainer.className = `w-32 h-32 sm:w-40 sm:h-40 mx-auto mb-3 rounded-2xl overflow-hidden bg-slate-900 border-2 shadow-inner flex items-center justify-center relative ${glowClass}`;
+
+            const card = document.getElementById('mixture-card');
+            card.classList.remove('animate-pop');
+            void card.offsetWidth;
+            card.classList.add('animate-pop');
+
+            qTimeRemaining = 40;
+            document.getElementById('q-timer-val').innerText = qTimeRemaining;
+            if (qTimerInterval) clearInterval(qTimerInterval);
+            qTimerInterval = setInterval(() => {
+                if (!gameActive || waitingForNext) return;
+                qTimeRemaining--;
+                document.getElementById('q-timer-val').innerText = qTimeRemaining;
+                if (qTimeRemaining <= 0) {
+                    clearInterval(qTimerInterval);
+                    selectAnswer('timeout');
+                }
+            }, 1000);
+
+            speakText(`ข้อที่ ${currentIndex + 1}. สารผสมคือ ${q.mixture}. ซ้ายคือ ${q.optionLeft}. ขวาคือ ${q.optionRight}.`);
+        }
+
+        function selectAnswer(choice) {
+            if (!gameActive || waitingForNext) return;
+
+            waitingForNext = true;
+            if (qTimerInterval) clearInterval(qTimerInterval);
+
+            const q = activeQuestions[currentIndex];
+            const isCorrect = (choice === q.correct);
+
+            const leftContainer = document.getElementById('option-left-container');
+            const rightContainer = document.getElementById('option-right-container');
+            
+            if (choice === 'timeout') {
+                combo = 1;
+                score = Math.max(0, score - 5);
+                playSound('wrong');
+                showExplanationModal(false, q, "หมดเวลา! ");
+                return;
+            }
+
+            const targetContainer = choice === 'left' ? leftContainer : rightContainer;
+
+            if (isCorrect) {
+                score += 15 * combo;
+                combo++;
+                playSound('correct');
+                targetContainer.classList.add('bg-emerald-500/35', 'border-emerald-400');
+            } else {
+                combo = 1;
+                score = Math.max(0, score - 5);
+                playSound('wrong');
+                targetContainer.classList.add('bg-rose-500/35', 'border-rose-400');
+            }
+
+            setTimeout(() => {
+                leftContainer.classList.remove('bg-emerald-500/35', 'border-emerald-400', 'bg-rose-500/35', 'border-rose-400');
+                rightContainer.classList.remove('bg-emerald-500/35', 'border-emerald-400', 'bg-rose-500/35', 'border-rose-400');
+                showExplanationModal(isCorrect, q, "");
+            }, 400);
+        }
+
+        function showExplanationModal(isCorrect, q, prefix = "") {
+            const modal = document.getElementById('explanation-modal');
+            const statusIcon = document.getElementById('exp-status-icon');
+            const title = document.getElementById('exp-title');
+            const subtitle = document.getElementById('exp-subtitle');
+            const modalImg = document.getElementById('exp-modal-img');
+            const expImgContainer = document.getElementById('exp-img-container');
+            const methodName = document.getElementById('exp-method-name');
+            const description = document.getElementById('exp-description');
+
+            if (isCorrect) {
+                statusIcon.className = "w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl shadow-lg shadow-emerald-500/20";
+                statusIcon.innerHTML = '<i class="fa-solid fa-check"></i>';
+                title.innerText = "ถูกต้องนะคร้าบ! 🎉";
+                subtitle.innerText = "ยอดเยี่ยม คุณวิเคราะห์สารผสมได้ถูกต้อง";
+            } else {
+                statusIcon.className = "w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center text-2xl shadow-lg shadow-rose-500/20";
+                statusIcon.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                title.innerText = prefix ? prefix + "เกือบถูกแล้ว! 💡" : "เกือบถูกแล้ว! 💡";
+                subtitle.innerText = "มาทบทวนหลักการที่ถูกต้องกันครับ";
+            }
+
+            modalImg.src = q.img;
+            const glowClass = `glow-variant-${currentIndex % 3}`;
+            expImgContainer.className = `w-24 h-24 sm:w-28 sm:h-28 rounded-xl overflow-hidden bg-slate-950 border-2 flex-shrink-0 flex items-center justify-center shadow ${glowClass}`;
+
+            const correctMethodText = q.correct === 'left' ? q.optionLeft : q.optionRight;
+            methodName.innerText = correctMethodText;
+            description.innerText = q.scienceInfo;
+
+            modal.classList.remove('hidden');
+
+            speakText((prefix ? prefix : "") + (isCorrect ? "ถูกต้องครับ. " : "เกือบถูกแล้วครับ. ") + q.scienceInfo);
+
+            startEyeRestCountdown();
+        }
+
+        function startEyeRestCountdown() {
+            let timeLeft = 5;
+            const timerValEl = document.getElementById('rest-timer-val');
+            const btnCountdownEl = document.getElementById('btn-countdown');
+            const progressBar = document.getElementById('rest-progress-bar');
+            const nextBtn = document.getElementById('next-q-btn');
+
+            if (timerValEl) timerValEl.innerText = timeLeft;
+            if (btnCountdownEl) btnCountdownEl.innerText = timeLeft;
+            if (progressBar) progressBar.style.width = '100%';
+            if (nextBtn) {
+                nextBtn.disabled = true;
+                nextBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                nextBtn.innerHTML = `<i class="fa-solid fa-arrow-right"></i> ข้อถัดไป (<span id="btn-countdown">${timeLeft}</span>s)`;
+            }
+
+            if (restInterval) clearInterval(restInterval);
+
+            restInterval = setInterval(() => {
+                timeLeft--;
+                const tEl = document.getElementById('rest-timer-val');
+                const bEl = document.getElementById('btn-countdown');
+                const pEl = document.getElementById('rest-progress-bar');
+                const nBtn = document.getElementById('next-q-btn');
+
+                if (tEl) tEl.innerText = timeLeft;
+                if (bEl) bEl.innerText = timeLeft;
+                if (pEl) pEl.style.width = `${(timeLeft / 5) * 100}%`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(restInterval);
+                    if (nBtn) {
+                        nBtn.disabled = false;
+                        nBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        nBtn.innerHTML = '<i class="fa-solid fa-arrow-right"></i> ข้อถัดไป';
+                    }
+                }
+            }, 1000);
+        }
+
+        function nextQuestionAfterModal() {
+            playSound('click');
+            if (restInterval) clearInterval(restInterval);
+            document.getElementById('explanation-modal').classList.add('hidden');
+            currentIndex++;
+            waitingForNext = false;
+            loadQuestion();
+        }
+
+        function showHint() {
+            if (!gameActive || waitingForNext) return;
+            playSound('click');
+            const q = activeQuestions[currentIndex];
+            document.getElementById('hint-text').innerText = "💡 คำใบ้: " + q.hint;
+            score = Math.max(0, score - 10);
+            document.getElementById('score-val').innerText = score;
+            speakText("คำใบ้คือ " + q.hint);
+        }
+
+        function updateTimer() {}
+
+        function endGame() {
+            gameActive = false;
+            waitingForNext = true;
+            clearInterval(timerInterval);
+            if (qTimerInterval) clearInterval(qTimerInterval);
+            if (restInterval) clearInterval(restInterval);
+            stopBGM();
+
+            const elapsedTime = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('gameplay-ui').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.remove('hidden');
+
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-time').innerText = elapsedTime + " วินาที";
+
+            let rank = "ระดับนักวิทยาศาสตร์น้อย 🧪";
+            if (score >= 80) rank = "ระดับศาสตราจารย์ผู้เชี่ยวชาญ 🔬";
+            else if (score >= 50) rank = "ระดับนักวิจัยมืออาชีพ 💡";
+            document.getElementById('final-rank').innerText = rank;
+
+            speakText("จบเกมแล้วครับ! คะแนนรวมของคุณคือ " + score + " คะแนน");
+        }
+
+        function restartGame() {
+            playSound('click');
+            startGame();
+        }
+
+        function toggleControlMode() {
+            playSound('click');
+            controlMode = controlMode === 'ar' ? 'manual' : 'ar';
+            const icon = document.getElementById('mode-icon');
+            const text = document.getElementById('mode-text');
+            if (controlMode === 'ar') {
+                icon.className = "fa-solid fa-eye text-cyan-400";
+                text.innerText = "โหมด: ตา (AR)";
+                speakText("เปลี่ยนเป็นโหมดติดตามดวงตาครับ");
+            } else {
+                icon.className = "fa-solid fa-mouse text-amber-400";
+                text.innerText = "โหมด: แมนนวล (คลิก)";
+                speakText("เปลี่ยนเป็นโหมดคลิกด้วยเมาส์ครับ");
+            }
+        }
+
+        function toggleHelpModal() {
+            playSound('click');
+            const modal = document.getElementById('help-modal');
+            modal.classList.toggle('hidden');
+        }
+
+        function renderLoop(currentTime) {
+            frameCount++;
+            if (currentTime - lastTime >= 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                const fpsEl = document.getElementById('fps-counter');
+                if (fpsEl) fpsEl.innerText = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+
+            updateAndDrawParticles();
+            requestAnimationFrame(renderLoop);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!gameActive || waitingForNext) return;
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') {
+                selectAnswer('left');
+            } else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+                selectAnswer('right');
+            }
+        });
+
+        window.onload = function() {
+            const canvas = document.getElementById('particle-canvas');
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
+            initParticles();
+
+            requestAnimationFrame(renderLoop);
+            setupMediaPipe();
+        };
+    </script>
+</body>
+</html>
